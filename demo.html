@@ -1,0 +1,514 @@
+<html>
+<head>
+   <title>Screen Recorder</title>
+   <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
+   <meta charset="utf-8">
+   <script type="text/javascript" src="http://static.firebase.com/demo/firebase.js"></script>
+   <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+   <script type="text/javascript" src="http://www.firebase.com/js/libs/idle.js"></script>
+   <script type="text/javascript" src="https://raw.github.com/katowulf/knockout-test-repo/master/app/lib/moment/moment.min.js"></script>
+   <link rel="stylesheet" type="text/css" href="http://www.firebase.com/css/example.css">
+   <style type="text/css">
+      body { text-align: left; margin: 0; }
+      .active { background-color: #ffc; }
+
+      #mousey { display: none; }
+
+      .mousey {
+         position: absolute;
+         z-index: 2000;
+      }
+
+      .anX {
+         position: absolute;
+         z-index: 1999;
+         font-size: 20px;
+         font-weight: bold;
+         color: red;
+      }
+
+      .presenceDiv {
+         text-align: left;
+      }
+
+      #container {
+         position: relative;
+         margin: 50px;
+         width: 600px;
+         height: 600px;
+         border: 1px solid gray;
+      }
+
+      #box1 {
+         position: absolute;
+         left: 250px;
+         top: 250px;
+         width: 50px;
+         height: 100px;
+         background-color: blue;
+      }
+
+      #box2 {
+         position: absolute;
+         left: 500px;
+         top: 200px;
+         width: 75px;
+         height: 75px;
+         background-color: gray;
+      }
+
+      .myAccount {
+         color: green;
+      }
+
+      span.usercolor {
+         display: inline-block;
+         width: 8px;
+         height: 8px;
+         margin: 0 4px;
+         visibility: hidden;
+      }
+
+      .user-white  .usercolor { background-color: white; border: 1px solid gray; }
+      .user-yellow .usercolor { background-color: yellow; }
+      .user-orange .usercolor { background-color: orange; }
+      .user-red    .usercolor { background-color: red; }
+      .user-blue   .usercolor { background-color: blue; }
+      .user-green  .usercolor { background-color: green; }
+      .user-gray   .usercolor { background-color: gray; }
+      .user-black  .usercolor { background-color: black; }
+      .user-purple .usercolor { background-color: black; }
+
+      .user.active button {
+         border: 1px solid red;
+         color: red;
+      }
+
+      .user.active .usercolor {
+         visibility: visible;
+      }
+   </style>
+</head>
+<body>
+<div id="container">
+   <div id="presenceDiv"></div>
+   <div id="box1"></div>
+   <div id="box2"></div>
+</div>
+<script type="text/javascript">
+(function($) { // localize scope
+
+   /** CONFIGURATION
+    **************************************************************************/
+
+   var FRAMERATE = 4; // per second
+   var FIREBASE_URL = 'http://demo.firebase.com/guest324921312';
+
+   // Prompt the user for a name to use.
+   var USER_NAME = prompt("Your name?", "Guest");
+   var USER_ID   = null;
+
+   // Get a reference to the presence data in firebase.
+   var FirebaseRoot = new Firebase(FIREBASE_URL);
+
+   //Our initial online status.
+   var DEFAULT_STATUS = '★  online';
+
+   setIdleTimeout(5000);
+   setAwayTimeout(10000);
+
+   /** LOCAL VIEW RENDERING (RUNS ON DOCUMENT READY)
+    ************************************************************************************/
+
+   jQuery(function() {  // run on document ready
+
+      var myAccount, userView, userController, screenTrackerView;
+
+      // the view gets callbacks from UserControl whenever an account is updated
+      // and is responsible for rendering the data
+      userView = {
+         created: function(user) {
+            var id = user.id;
+            if( !$('#'+id).length ) {
+               var $e = $('<div/>').addClass('user user-'+user.color).attr('id', user.id).append('<span class="content"></span><button><span class="usercolor"></span>monitor</button>');
+               if( myAccount && myAccount.id === user.id ) {
+                  $e.addClass('myAccount');
+               }
+               $('#presenceDiv').append($e);
+            }
+            setLocalStatus(user);
+         },
+         updated: function(user) {
+            setLocalStatus(user);
+         },
+         destroyed: function(user) {
+            $("#" + user.id).remove();
+         }
+      };
+
+      function setLocalStatus(user) {
+         $('#' + user.id+' span.content').text(user.id + ' is currently ' + user.status);
+      }
+
+      /** MONITOR USER ACCOUNTS
+       *********************************************************************/
+
+      // this actually monitors for remote accounts being added/updated/deleted
+      // and informs the renderer whenever a change occurs
+      userController = new UserController(FirebaseRoot, userView);
+
+
+      /** UPDATE LOCAL USER ON CHANGES
+       *********************************************************************/
+
+      myAccount = userController.create({name: USER_NAME, status: DEFAULT_STATUS});
+
+      myAccount.ready().then(function(myAccount) {
+         USER_ID = myAccount.id;
+
+         // make sure this user is deleted from database on a disconnect event
+         myAccount.ref.removeOnDisconnect();
+
+
+         // Use idle/away/back events created by idle.js to update our status information;
+         document.onIdle = function () {
+            myAccount.status = '☆ idle';
+            myAccount.sync();
+         };
+         document.onAway = function () {
+            myAccount.status = '☄ away';
+            myAccount.sync();
+         };
+         document.onBack = function (isIdle, isAway) {
+            myAccount.status = '★ online';
+            myAccount.sync();
+         };
+
+         //todo
+         //// send notice any time screen is resized
+         //$(window).resize(function() {
+         //   myScreen.set(_screenSize())
+         //});
+         //myScreen.set(_screenSize());
+
+      });
+
+      /** MONITOR USER SCREENS
+       *********************************************************************/
+
+      screenTrackerView = {
+         created: function(screenMonitor) {
+//            <img id="mousey" class="mousey" src="https://github.com/katowulf/mousey/raw/master/example/pointer-arrow-yellow.png" />
+            //todo
+            console.log('created', screenMonitor);
+         },
+         updated: function(screenMonitor) {
+            //todo
+            console.log('updated', screenMonitor);
+         },
+         destroyed: function(screenMonitor) {
+            //todo
+            console.log('destroyed', screenMonitor);
+            $('#'+screenMonitor.userId).removeClass('active');
+         }
+      };
+
+      var screenTracker = new ScreenTrackerController(FirebaseRoot, screenTrackerView);
+
+      myAccount.ready().then(function(myAccount) {
+         screenTracker.syncLocal(myAccount.id);
+      });
+
+      $('#presenceDiv').on('click', '.user button', toggleMonitor);
+
+      function toggleMonitor(e) {
+         var $parent = $(this).parent(), id = $parent.attr('id'), active = $parent.hasClass('active');
+         console.log('toggleMonitor', active);
+         $parent.toggleClass('active');
+         screenTracker.toggle(id, active);
+      }
+
+   }); // end jQuery(...) run on document ready
+
+
+
+   /** DATA MODELS AND CONTROLLERS
+    **************************************************************************/
+
+   /*****************************************************
+    * IncrementalIdGenerator
+    *
+    * @param firebaseRoot
+    * @param idCounterKey
+    * @constructor
+    ****************************************************/
+   function IncrementalIdGenerator(firebaseRoot, idCounterKey) {
+      var self = this;
+      self.ref = firebaseRoot.child(idCounterKey);
+
+      /**
+       * Create a new ID (the next one in sequence)
+       * @return {jQuery.Deferred} promise
+       */
+      this.create = function() {
+         var def = $.Deferred();
+         self.ref.once('value', function(snapshot) {
+            var idCounter = ~~snapshot.val();
+            def.resolve(++idCounter);
+            self.ref.set(idCounter);
+         });
+         return def.promise();
+      };
+   }
+
+   /*****************************************************
+    * UserControl
+    *
+    * @param firebaseRoot
+    * @param view
+    * @constructor
+    ***************************************************/
+   function UserController(firebaseRoot, view) {
+      this.userRefList = firebaseRoot.child('user');
+      this.idCounter   = new IncrementalIdGenerator(firebaseRoot, 'userIdCounter');
+      this.view        = view;
+      this.users       = [];
+
+      var self = this;
+      this.userRefList.on('child_added', function(snapshot) {
+         self.create(snapshot.val());
+      });
+
+      this.userRefList.on('child_removed', function(snapshot) {
+         self.remove(snapshot.val().id);
+      });
+   }
+
+   UserController.prototype.fetch = function(userId) { return this.users[userId]; };
+   UserController.prototype.create = function(props) {
+      var user = new User(this, props);
+      this.users[user.id] = user;
+      return user;
+   };
+   UserController.prototype.remove = function(userId) {
+      var user = this.fetch(userId);
+      user && delete this.users[userId];
+      user && user.removed();
+      return this;
+   };
+   UserController.prototype.newId = function() {
+      return this.idCounter.create();
+   };
+
+   /*****************************************************
+    * User
+    *
+    * @param controller
+    * @param props
+    * @constructor
+    ***************************************************/
+   function User(controller, props) {
+      if( typeof(props) === 'string' ) { props = {name: props}; }
+      var alreadyExists = 'id' in props, self = this;
+      // create a new unique id if necessary
+      this.name   = props.name;
+      this.status = props.status || DEFAULT_STATUS;
+      this.view   = controller.view;
+      this.color  = ColorPicker.nextColor(); // assign each user a color
+      this.def = $.Deferred();
+
+      // determining the Id may require a callback, so we use a deferred/promise pattern
+      _loadUserId(this, controller, props).then(function(id) {
+         // store the id
+         self.id = id;
+
+         // load or create the new record in Firebase
+         self.ref = controller.userRefList.child(id);
+
+         if( self.name == 'Guest' ) {
+            self.name = 'Guest_'+id;
+         }
+
+         // add user to the view
+         self.view.created(self);
+
+         // if it's a new account, sync with firebase
+         if( !alreadyExists ) {
+            self.sync();
+         }
+
+         // listen for changes
+         self.ref.on('value', function(snapshot) { self.updated.call(self, snapshot); });
+
+         // fulfill the promise (the user is ready)
+         self.def.resolve(self);
+      });
+
+   }
+
+   User.prototype.ready   = function() { return this.def.promise(); };
+   User.prototype.sync = function() {
+      this.ref.set({
+         id: this.id,
+         name: this.name,
+         status: this.status
+      });
+   };
+   User.prototype.updated = function(snapshot) {
+      var vals = snapshot.val();
+      if( vals !== null ) {
+         this.name = vals.name;
+         this.status = vals.status;
+         this.view.updated(this);
+      }
+   };
+   User.prototype.removed = function() {
+      this.ref.off('value', this.updated);
+      this.view.destroyed(this);
+   };
+
+   /**
+    * @param {User} self
+    * @param {UserController} controller
+    * @param {object} props
+    * @return {jQuery.Deferred} promise
+    * @private
+    */
+   function _loadUserId(self, controller, props) {
+      var fx;
+      if( 'id' in props ) {
+         return $.Deferred().resolve(props.id).promise();
+      }
+      else {
+         return controller.newId();
+      }
+   }
+
+   /*****************************************************
+    * ColorPicker
+    ***************************************************/
+   var ColorPicker = (function(fbRoot) {
+      var availColors = ['yellow', 'red', 'blue', 'green', 'purple', 'orange', 'gray', 'black', 'white'];
+      var currColor = 0;
+      var max = availColors.length-1;
+      return {
+         nextColor: function() {
+            if( currColor > max ) { currColor = 0; }
+            return availColors[currColor++];
+         }
+      };
+   })(FirebaseRoot);
+
+
+   /*****************************************************
+    * ScreenMonitorController
+    *
+    * @param firebaseRoot
+    * @constructor
+    ***************************************************/
+   function ScreenTrackerController(firebaseRoot, view) {
+      var self = this;
+
+      // stop monitoring any user that is removed
+      this.ref = firebaseRoot.child('pointers');
+      this.monitoredScreens = [];
+      this.view = view;
+
+      this.ref.on('child_removed', function(snapshot) {
+         var pointer = snapshot.val(), id = pointer.user;
+         if( id && id in self.monitoredScreens ) {
+            self.stop(id);
+         }
+      });
+   }
+
+   (function() { // scoped local to ScreenMonitorController
+
+      ScreenTrackerController.prototype.toggle = function(userId, active) {
+         if( typeof(active) !== 'boolean' ) { active = (userId in this.monitoredScreens); }
+         (active && this.track(userId)) || this.stop(userId);
+         return this;
+      };
+
+      ScreenTrackerController.prototype.track = function(userId) {
+         this.monitoredScreens[userId] = new ScreenTracker(userId, this.ref, this.view);
+         return this;
+      };
+
+      ScreenTrackerController.prototype.stop = function(userId) {
+         if(userId in this.monitoredScreens) {
+            this.monitoredScreens[userId].destroy();
+            delete this.monitoredScreens[userId];
+         }
+         return this;
+      };
+
+      ScreenTrackerController.prototype.syncLocal = function(userId) {
+         var ref = this.ref.child(userId);
+         var currPos = {top: 0, left: 0, type: ''};
+         var lastPos = {top: 0, left: 0, type: ''};
+
+         ref.removeOnDisconnect();
+
+         // track mouse movement
+         $(document).on('mousemove', function(e) {
+            currPos = {top: e.clientY, left: e.clientX, type: e.type, user: userId};
+         });
+
+         // buffer updates by only checking the mouse position occasionally
+         setInterval(function() {
+            if( _moved(currPos, lastPos) ) {
+               lastPos = currPos;
+               ref.set(currPos);
+            }
+         }, Math.ceil(1000/FRAMERATE));
+
+         return this;
+      };
+
+      function _moved(currPos, lastPos) {
+         return currPos.top != lastPos.top || currPos.left != lastPos.left;
+      }
+
+   })();
+
+   /*****************************************************
+    * ScreenMonitor
+    *
+    * @param userId
+    * @constructor
+    ***************************************************/
+   function ScreenTracker(userId, pointersRefList, view) {
+      var self = this;
+      this.userId = userId;
+      this.view   = view;
+      this.ref    = pointersRefList.child(userId);
+
+      var trackFxn = function(snapshot) {
+         self.view.updated(self);
+      };
+
+      this.ref.on('value', trackFxn);
+
+      this.destroy = function() {
+         self.ref.off('value', trackFxn);
+         view.destroyed(self);
+      };
+
+      view.created(this);
+   }
+
+   ScreenTracker.pos = function(pointerData) {
+      var out = {top: pointerData.top, left: pointerData.left};
+      if( pointerData.user === USER_ID ) {
+         // if tracking own mouse, offset it just enough so that clicks work
+         out.top += 2;
+         out.left += 2;
+      }
+      return out;
+   };
+
+   })(jQuery);
+</script>
+</body>
+</html>
