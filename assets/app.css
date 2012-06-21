@@ -1,7 +1,6 @@
-body { text-align: left; margin: 0; }
-.active { background-color: #ffc; }
+/*body { text-align: left; margin: 0; }*/
 
-#mousey { display: none; }
+.active { background-color: #ffc; }
 
 .mousey {
    position: absolute;
@@ -13,24 +12,21 @@ body { text-align: left; margin: 0; }
    z-index: 1999;
    font-size: 20px;
    font-weight: bold;
-   color: red;
-}
-
-.presenceDiv {
-   text-align: left;
+   text-shadow: 1px 1px white, -1px -1px #444;
 }
 
 #container {
-   position: relative;
    margin: 50px;
-   width: 600px;
-   height: 600px;
-   border: 1px solid gray;
+}
+
+#contentbox {
+  position: relative;
+  height: 500px;
 }
 
 #box1 {
    position: absolute;
-   left: 250px;
+   left: 75px;
    top: 250px;
    width: 50px;
    height: 100px;
@@ -39,9 +35,51 @@ body { text-align: left; margin: 0; }
 
 #box2 {
    position: absolute;
-   left: 500px;
-   top: 200px;
+   left: 200px;
+   top: 100px;
    width: 75px;
    height: 75px;
    background-color: gray;
+}
+
+#contentbox textarea {
+   position: absolute;
+   left: 250px;
+   top: 250px;
+   width: 150px;
+   height: 150px;
+}
+
+.myAccount {
+   color: green;
+}
+
+.active.user-white  a.monitor i, .anX.user-white  { color: white; }
+.active.user-yellow a.monitor i, .anX.user-yellow { color: yellow; }
+.active.user-orange a.monitor i, .anX.user-orange { color: orange; }
+.active.user-red    a.monitor i, .anX.user-red    { color: red; }
+.active.user-blue   a.monitor i, .anX.user-blue   { color: blue; }
+.active.user-green  a.monitor i, .anX.user-green  { color: green; }
+.active.user-gray   a.monitor i, .anX.user-gray   { color: gray; }
+.active.user-black  a.monitor i, .anX.user-black  { color: black; }
+.active.user-purple a.monitor i, .anX.user-purple { color: purple; }
+
+.user a.record { display: none; }
+.active.user a.record { display: inline-block; }
+
+/**/
+/*.user a.monitor i {*/
+   /*visibility: hidden;*/
+/*}*/
+
+.btn {
+   margin-left: 10px;
+}
+
+.btn i {
+   margin-right: 5px;
+}
+
+.user .label {
+   margin: 0 10px;
 }

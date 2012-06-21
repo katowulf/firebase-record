@@ -1,27 +1,51 @@
 ﻿<html>
 <head>
-    <title>Scree Recording Proof</title>
+    <title>Screen Recording Playpen</title>
     <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
     <meta charset="utf-8">
-    <script type="text/javascript" src="http://static.firebase.com/demo/firebase.js"></script>
+
+    <!--[if lt IE 9]>
+    <script type="text/javascript" src="lib/js/html5shiv.js"></script>
+    <![endif]-->
+
+    <script src="http://static.firebase.com/v0/firebase.js"></script>
+
     <link rel="stylesheet" type="text/css" href="lib/bootstrap/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="assets/app.css">
 </head>
 <body>
-<img id="mousey" class="mousey" src="https://github.com/katowulf/mousey/raw/master/example/pointer-arrow-yellow.png" />
-<div id="container">
-    <div id="presenceDiv"></div>
-    <div id="box1"></div>
-    <div id="box2"></div>
+
+<div class="container" id="container">
+    <div class="row">
+        <div class="span12">
+            <p><em>Begin typing to create a message. Drag the boxes. Open another browser or have a friend visit for max joy.</em></p>
+            <p>&nbsp;</p>
+        </div>
+    </div>
+    <div class="row">
+        <div class="span7">
+            <div class="well" id="contentbox">
+                <div id="box1"></div>
+                <div id="box2"></div>
+                <textarea></textarea>
+            </div>
+        </div>
+        <div class="span5">
+            <div id="presence"></div>
+            <div id="replays"></div>
+            <div id="discussion"></div>
+        </div>
+    </div>
+    <div class="row"><div id="marker" class="span12"></div></div>
 </div>
 <script type="text/javascript" src="lib/jquery/jquery.min.js"></script>
+<script type="text/javascript" src="lib/jquery/jquery.cookie.js"></script>
+<script type="text/javascript" src="lib/bootstrap/js/bootstrap.min.js"></script>
 <script type="text/javascript" src="lib/firebase/idle.js"></script>
 <script type="text/javascript" src="lib/moment/moment.min.js"></script>
-<!--<script type="text/javascript" src="assets/user.js"></script>-->
-<!--<script type="text/javascript" src="assets/pointer.js"></script>-->
-<!--<script type="text/javascript" src="assets/recording.js"></script>-->
-<script>
-
-</script>
+<script type="text/javascript" src="assets/utils.js"></script>
+<script type="text/javascript" src="assets/user.js"></script>
+<script type="text/javascript" src="assets/tracker.js"></script>
+<script type="text/javascript" src="assets/app.js"></script>
 </body>
 </html>

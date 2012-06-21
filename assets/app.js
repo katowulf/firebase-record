@@ -1,254 +1,230 @@
-var FRAMERATE = 4; // per second
+(function($) { // localize scope
 
-var FIREBASE_URL = 'http://demo.firebase.com/guest324921312';
+   /** CONFIGURATION
+    **************************************************************************/
 
-// Prompt the user for a name to use.
-var USER_NAME = prompt("Your name?", "Guest"+Math.floor(Math.random()*9999+1));
+   var FRAMERATE = 10; // per second
+   var FIREBASE_URL = 'http://gamma.firebase.com/wordspot/';
 
-// Get a reference to the presence data in firebase.
-var ListRef = new Firebase(FIREBASE_URL);
-var userListRef = ListRef.child('users');
+   // Prompt the user for a name to use.
+   var USER_NAME = _getUserName();
 
-//Our initial online status.
-var currentStatus = '★  online';
+   // The html appearing in a user's status row
+   var USER_PRESENCE_TEMPLATE = '<span></span>' +
+      '<a class="btn btn-mini monitor" href="#"><i class="icon-eye-open"></i>track</a>' +
+      '<a class="btn btn-mini record" href="#"><i class="icon-play"></i>record</a>';
 
-//Get a reference to my own presence status
-var myAccount = userListRef.child(USER_NAME);
-myAccount.removeOnDisconnect();
-var myStatus = myAccount.child('status');
-var myScreen = myAccount.child('screen');
-var screens = {};
+   // the html appearing in a replay link
+   var REPLAY_TEMPLATE = '<div id="{replayId}">{name} (created {created}) ' +
+      '<a href="#" class="btn btn-micro play"><i class="icon-play"></i>{duration}</a>' +
+      '<a href="#" class="btn btn-micro del"><i class="icon-remove"></i></a>';
 
-// send notice any time screen is resized
-$(window).resize(function() {
-   myScreen.set(_screenSize())
-});
-myScreen.set(_screenSize());
+   // Get a reference to the presence data in firebase.
+   var FirebaseRoot = new Firebase(FIREBASE_URL);
 
-//A helper function to let us set our own state.
-function setUserStatus(status) {
-   currentStatus = status;
-   myStatus.set(status);
-}
+   setIdleTimeout(5000);
+   setAwayTimeout(10000);
 
-//We need to catch anytime we are marked as offline and then set the correct status. We
-//could be marked as offline 1) on page load or 2) when we lose our internet connection
-//temporarily.
-myStatus.set(currentStatus);
-myStatus.on("value", function(snapshot) {
-   if( snapshot.val() === null ) {
-      setUserStatus(currentStatus);
-      myScreen.set(_screenSize());
+   /** LOCAL VIEW RENDERING (RUNS ON DOCUMENT READY)
+    ************************************************************************************/
+
+   jQuery(function($) {  // run on document ready
+
+      var myAccount, userView, userController, screenTrackerView, replayView;
+
+      // the view gets callbacks from UserControl whenever an account is updated
+      // and is responsible for rendering the data
+      userView = {
+         created: function(user) {
+            var id = user.id;
+            if( !$('#'+id).length ) {
+               var $e = $('<div/>')
+                  .addClass('user user-'+user.color)
+                  .attr('id', user.id)
+                  .append(USER_PRESENCE_TEMPLATE);
+               if( myAccount && myAccount.id === user.id ) {
+                  $e.addClass('myAccount');
+               }
+               $('#presence').append($e);
+            }
+            setLocalStatus(user);
+         },
+         updated: function(user) {
+            setLocalStatus(user);
+         },
+         destroyed: function(user) {
+            $("#" + user.id).remove();
+         }
+      };
+
+      function setLocalStatus(user) {
+         $('#' + user.id+' span').html(user.name + user.status);
+      }
+
+      /** MONITOR USER PRESENCE
+       *********************************************************************/
+
+      // this actually monitors for remote accounts being added/updated/deleted
+      // and informs the renderer whenever a change occurs
+      userController = new UserController(FirebaseRoot, userView);
+
+      /** Update local user so remote viewers can see us */
+      var myAccountLoader = userController.create({name: USER_NAME}).then(function(user) {
+         myAccount = user;
+
+         // it's a new account so add it to Firebase and notify people it exists
+         user.sync();
+
+         // make sure this user is deleted from database on a disconnect event
+         user.ref.removeOnDisconnect();
+
+         // Use idle/away/back events created by idle.js to update our status information;
+         document.onIdle = function() {
+            user.status = UserController.STATUS_IDLE;
+            user.sync();
+         };
+         document.onAway = function() {
+            user.status = UserController.STATUS_AWAY;
+            user.sync();
+         };
+         document.onBack = function() {
+            user.status = UserController.STATUS_ONLINE;
+            user.sync();
+         };
+      });
+
+      /** TRACK SCREEN EVENTS
+       *********************************************************************/
+
+      screenTrackerView = {
+         lastPos: {top: 0, left: 0},
+         created: function(screenMonitor) {
+            var id = screenMonitor.userId;
+            //todo use colors once mousey images are available
+            $('<img id="mousey-'+id+'" class=".mousey" src="assets/img/pointer-arrow-yellow.png" />')
+               .appendTo('body').offset(ScreenTrackerController.pos(screenMonitor.event, myAccount.id));
+            _toggleOnMonitor(screenMonitor);
+            return true;
+         },
+         updated: function(event) {
+            var pos = ScreenTrackerController.pos(event, myAccount.id);
+            if( _moved(pos, this.lastPos) ) {
+               $('#mousey-'+event.userId).offset(pos);
+               if( event.type == 'click' ) {
+                  xIt(pos, userColor(event.userId, userController));
+               }
+            }
+            return true;
+         },
+         destroyed: function(screenMonitor) {
+            $('#mousey-'+screenMonitor.userId).remove();
+            _toggleOffMonitor(screenMonitor);
+            return true;
+         },
+         recordingOn: function(screenMonitor) {
+            var $button = $('#'+screenMonitor.userId+' a.record');
+            $button.addClass('btn-danger').find('i').removeClass('icon-play').addClass('icon-stop');
+            return true;
+         },
+         recordingOff: function(screenMonitor) {
+            var $button = $('#'+screenMonitor.userId+' a.record');
+            $button.removeClass('btn-danger').find('i').removeClass('icon-stop').addClass('icon-play');
+            return true;
+         }
+      };
+
+      replayView = {
+         created: function(replayId, replay) {
+            $('#replays').append(_replayTemplate(replayId, replay));
+         },
+         destroyed: function(replayId, replay) {
+            console.log('replay destroyed', replayId, replay);
+         },
+         started: function(replayId, replay) {
+            console.log('replay started', replayId, replay);
+         },
+         finished: function(replayId, replay) {
+            console.log('replay finished', replayId, replay);
+         }
+         //todo paused? aborted?
+      };
+
+      var screenTracker = new ScreenTrackerController(FirebaseRoot, screenTrackerView, replayView, FRAMERATE);
+
+      myAccountLoader.then(function(user) {
+         // record local screen events for others to track
+         screenTracker.syncLocal(user.id);
+      });
+
+      $('#presence').on('click', '.user a.monitor', toggleMonitor).on('click', '.user a.record', toggleRecording);
+
+      function toggleMonitor(e) {
+         var $parent = $(this).parent(), id = $parent.attr('id'), activate = !$parent.hasClass('active');
+         screenTracker.toggle(userController.fetch(id), activate);
+      }
+
+      function toggleRecording(e) {
+         var $parent = $(this).parent(), id = $parent.attr('id'), activate = !$(this).hasClass('btn-danger');
+         screenTracker.toggleRecording(userController.fetch(id), activate);
+      }
+
+
+   }); // end jQuery(...) run on document ready
+
+   /** UTILITY FUNCTIONS
+    **************************************************************************************************/
+
+   function _getUserName() {
+      var name = $.cookie('USER_NAME');
+      if( name ) { return name; }
+
+      name = prompt("Your name?", "Guest") || 'Guest';
+      _setUserName(name);
+      return name;
    }
-});
 
-// Render someone's online status
-function addUser(snapshot) {
-   var $button = $('<button>monitor</button>').click(toggleMonitor);
-   $('#presenceDiv').append($('<div/>').attr('id', snapshot.name()).append('<span />').append($button));
-   setLocalStatus(snapshot.name(), snapshot.child('status'));
-   setLocalScreens(snapshot.name(), snapshot.child('screen'));
-}
-//Remove the status of a user who left
-function removeUser(snapshot) {
-   $("#" + snapshot.name()).remove();
-}
-// update the user account on screen resize or status change
-function updateUser(snapshot) {
-   setLocalStatus(snapshot.name(), snapshot.child('status'));
-   setLocalScreens(snapshot.name(), snapshot.child('screen'));
-}
-
-//Change a user's status
-function setLocalStatus(name, snapshot) {
-//        var name = snapshot.parent().name();
-   $('#' + name).find('span').text(name + ' is currently ' + snapshot.val());
-}
-
-//Change a user's status
-function setLocalScreens(name, snapshot) {
-//        var name = snapshot.parent().name();
-   screens[name] = snapshot.val();
-}
-
-//Anytime an online status is added, removed, or changed, we want to update the GUI
-userListRef.on('child_added', addUser);
-userListRef.on('child_removed', removeUser);
-userListRef.on('child_changed', updateUser);
-
-// Use idle/away/back events created by idle.js to update our status information;
-document.onIdle = function () {
-   setUserStatus('☆ idle');
-};
-document.onAway = function () {
-   setUserStatus('☄ away');
-};
-document.onBack = function (isIdle, isAway) {
-   setUserStatus('★ online');
-};
-
-setIdleTimeout(5000);
-setAwayTimeout(10000);
-
-
-/** Screen Monitoring
- **********************************************************************************/
-
-//Get a reference to my own presence status
-var pointerList = ListRef.child('pointers');
-var myPointer = { ref: pointerList.child(USER_NAME), curr: {top: 0, left: 0, type: ''}, last: {} };
-var pointers = {};
-
-jQuery(function($) {
-   $(document)
-      // send mousemove commands; buffer them for performance
-         .on('mousemove', bufferNotify)
-      // send all click notices (do not buffer them)
-         .on('click', function(e) {
-            myPointer.ref.set({top: e.clientY, left: e.clientX, type: 'click', user: name});
-         })
-});
-
-setInterval(function() {
-   // check for buffered mousemoves and send them off
-   if( _moved(myPointer.curr, myPointer.last) ) {
-      myPointer.last = myPointer.curr;
-      myPointer.ref.set(myPointer.curr);
+   function _setUserName(name) {
+      console.log('setting name to '+name);
+      $.cookie('USER_NAME', name);
    }
-}, Math.ceil(1000/FRAMERATE));
 
-function bufferNotify(e) {
-   myPointer.curr = {top: e.clientY, left: e.clientX, type: e.type};
-}
-
-function toggleMonitor() {
-   var id = $(this).parent().attr('id'), pointer = pointers[id] || {id: id};
-   (pointer.active && disablePointer(pointer)) || enablePointer(pointer);
-}
-
-function enablePointer(pointer) {
-   var id = pointer.id;
-   pointer = pointers[ id ] = {active: true, id: id, ref: pointerList.child(id), loc: {left: 0, top: 0, type: ''}};
-   $('#mousey').clone().appendTo('body').attr('id', 'mousey-'+id).offset(pointer.loc);
-   // activate the current button
-   $('#'+id+' button').addClass('active');
-   // create a callback to track changes to the mouse position
-   // store a ref to the callback so we can remove it later
-   pointer.callback = function(snapshot) {
-      moveEvent(pointer, snapshot.val());
-   };
-   // activate the callback to monitor mouse position and update
-   pointer.ref.on('value', pointer.callback);
-   return true;
-}
-
-function disablePointer(pointer) {
-   var id = pointer.id;
-//        // stop repositioning the arrow
-//        clearInterval(pointer.interval);
-   // remove the Firebase event listener
-   pointer.ref.off('value', pointer.callback);
-   // reset the button class
-   $('#'+id+' button').removeClass('active');
-   // prevent memory leaks since the callback references dom objects
-   // but since this is all async and calls may still be coming in right now
-   // keep it as a valid function for the moment
-   pointer.callback = function() {};
-   // remove the pointer arrow from the screen
-   $('#mousey-'+id).remove();
-   // mark the pointer disabled
-   pointer.active = false;
-   return true;
-}
-
-function checkPosition(pointer) {
-   var $mousey = $('#mousey-'+pointer.id), pos = _pos(pointer);
-   if( pointer.active && _moved(pos, $mousey.offset()) ) {
-      $mousey.offset(pos);
+   function _toggleOnMonitor(screenMonitor) {
+      var $parent = $('#'+screenMonitor.userId);
+      $parent.addClass('active');
+      $parent.find('a.monitor').addClass('btn-primary').find('i').removeClass('icon-eye-open').addClass('icon-stop');
    }
-}
 
-function _pos(pointer) {
-   var loc = pointer.loc, out = {top: loc.top, left: loc.left };
-   if( pointer.id === USER_NAME ) {
-      // don't let fake mouse interfere with real mouse
-      out.top += 2;
-      out.left += 2;
+   function _toggleOffMonitor(screenMonitor) {
+      var $parent = $('#'+screenMonitor.userId);
+      $parent.removeClass('active');
+      $parent.find('a.monitor').removeClass('btn-primary').find('i').removeClass('icon-stop').addClass('icon-eye-open');
    }
-   return out;
-}
 
-function _moved(pointer, loc) {
-   return pointer.top != loc.top || pointer.left != loc.left;
-}
+   function userColor(userId, userController) {
+      return userController.fetch(userId).color;
+   }
 
-function _screenSize() {
-   $win = $(window);
-   return {width: $win.width(), height: $win.height()};
-}
+   function xIt(loc, color) {
+      var pos = $.extend({}, loc);
+      var $e = $('<div class="anX user-'+color+'">X</div>').offset({top: -250, left: -250}).appendTo('body');
+      pos.top -= $e.height()/2;
+      pos.left -= $e.width()/2;
+      $e.offset(pos).fadeOut(3000, function() { $(this).remove(); });
+   }
 
-function moveEvent(pointer, loc) {
-   pointer.loc = loc;
-   checkPosition(pointer);
-   if( loc.type === 'click' ) { xIt(loc); }
-}
+   function _moved(currPos, lastPos) {
+      return currPos.top != lastPos.top || currPos.left != lastPos.left;
+   }
 
-function xIt(loc) {
-   var pos = $.extend({}, loc);
-   var $e = $('<div class="anX">X</div>').offset({top: -250, left: -250}).appendTo('body');
-   pos.top -= $e.height()/2;
-   pos.left -= $e.width()/2;
-   $e.offset(pos).fadeOut(5000, function() { $(this).remove(); });
-}
+   function _replayTemplate(replayId, replay) {
+      var duration = moment.duration(replay.stopTime - replay.startTime);
+      return REPLAY_TEMPLATE
+         .replace(/\{replayId\}/, replayId)
+         .replace(/\{userId\}/, replay.userId)
+         .replace(/\{name\}/,   replay.name)
+         .replace(/\{duration\}/, duration.asHours()+':'+duration.seconds())
+         .replace(/\{created\}/, moment(replay.startTime).fromNow())
+      ;
+   }
 
-/** Screen Recordings
- **************************************************************/
-var recordingList = ListRef.child('recordings');
-var recordingIdRef = ListRef.child('recordingCounter');
-
-// a map of user ids to recording data that will be stored
-var recordingsInProgress = {};
-
-function startRecording(userId) {
-   recordingsInProgress[userId] = [];
-   var ref = pointerList.child(userId);
-   ref.on('value', record);
-}
-
-function stopRecording(userId) {
-   pointerList.child(userId).off('value', record);
-   _newRecId().then(function(recId) {
-      recordingList.child(recId, recordingsInProgress[userId]);
-      delete recordingsInProgress[userId];
-   });
-}
-
-function record(snapshot) {
-   var e = snapshot.val();
-   recordingsInProgress[e.user].push(e);
-}
-
-function updateRecordingList(snapshot) {
-   //todo
-   //todo
-   //todo
-   //todo
-   //todo
-}
-recordingList.on('value', updateRecordingList);
-
-function replay(recordingId) {
-   //todo
-   //todo
-   //todo
-}
-
-function _newRecId() {
-   var def = $.Deferred();
-   recordingIdRef.once('value', function(data) {
-      def.resolve(++data);
-      //todo this should probably use a transaction
-      recordingIdRef.set(data);
-   });
-   return def.promise();
-}
+})(jQuery);

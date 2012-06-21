@@ -100,18 +100,10 @@ function moveEvent(pointer, loc) {
    if( loc.type === 'click' ) { xIt(loc); }
 }
 
-function xIt(loc) {
-   var pos = $.extend({}, loc);
-   var $e = $('<div class="anX">X</div>').offset({top: -250, left: -250}).appendTo('body');
-   pos.top -= $e.height()/2;
-   pos.left -= $e.width()/2;
-   $e.offset(pos).fadeOut(5000, function() { $(this).remove(); });
-}
-
 /** Screen Recordings
  **************************************************************/
 var recordingList = FirebaseRootRef.child('recordings');
-var recordingIdRef = FirebaseRootRef.child('recordingCounter');
+var recordingIdRef = FirebaseRootRef.child('recordingIdCounter');
 
 // a map of user ids to recording data that will be stored
 var recordingsInProgress = {};
