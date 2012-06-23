@@ -83,3 +83,17 @@
 .user .label {
    margin: 0 10px;
 }
+
+#statusbox h2 {
+   margin-top: .25em;
+   font-size: 1em;
+}
+
+#statusbox ul {
+   list-style-type: none;
+   margin-left: 10px;
+}
+
+#statusbox ul li {
+   line-height: 30px;
+}

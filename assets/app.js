@@ -7,17 +7,17 @@
    var FIREBASE_URL = 'http://gamma.firebase.com/wordspot/';
 
    // Prompt the user for a name to use.
-   var USER_NAME = _getUserName();
+   var USER_NAME = getUserName();
 
    // The html appearing in a user's status row
-   var USER_PRESENCE_TEMPLATE = '<span></span>' +
+   var USER_PRESENCE_TEMPLATE = '<li><span></span>' +
       '<a class="btn btn-mini monitor" href="#"><i class="icon-eye-open"></i>track</a>' +
-      '<a class="btn btn-mini record" href="#"><i class="icon-play"></i>record</a>';
+      '<a class="btn btn-mini record" href="#"><i class="icon-play"></i>record</a></li>';
 
    // the html appearing in a replay link
-   var REPLAY_TEMPLATE = '<div id="{replayId}">{name} (created {created}) ' +
-      '<a href="#" class="btn btn-micro play"><i class="icon-play"></i>{duration}</a>' +
-      '<a href="#" class="btn btn-micro del"><i class="icon-remove"></i></a>';
+   var REPLAY_TEMPLATE = '<li id="replay{replayId}">{name} ({created} old) ' +
+      '<a href="#" class="btn btn-mini play"><i class="icon-play"></i>{duration}</a>' +
+      '<a href="#" class="btn btn-mini del"><i class="icon-remove"></i></a></li>';
 
    // Get a reference to the presence data in firebase.
    var FirebaseRoot = new Firebase(FIREBASE_URL);
@@ -30,7 +30,7 @@
 
    jQuery(function($) {  // run on document ready
 
-      var myAccount, userView, userController, screenTrackerView, replayView;
+      var myAccount, userView, userController, screenTrackerView, replayView, screenTracker;
 
       // the view gets callbacks from UserControl whenever an account is updated
       // and is responsible for rendering the data
@@ -38,10 +38,9 @@
          created: function(user) {
             var id = user.id;
             if( !$('#'+id).length ) {
-               var $e = $('<div/>')
+               var $e = $(USER_PRESENCE_TEMPLATE)
                   .addClass('user user-'+user.color)
-                  .attr('id', user.id)
-                  .append(USER_PRESENCE_TEMPLATE);
+                  .attr('id', user.id);
                if( myAccount && myAccount.id === user.id ) {
                   $e.addClass('myAccount');
                }
@@ -99,11 +98,11 @@
       screenTrackerView = {
          lastPos: {top: 0, left: 0},
          created: function(screenMonitor) {
-            var id = screenMonitor.userId;
+            var id = screenMonitor.user.id;
             //todo use colors once mousey images are available
             $('<img id="mousey-'+id+'" class=".mousey" src="assets/img/pointer-arrow-yellow.png" />')
                .appendTo('body').offset(ScreenTrackerController.pos(screenMonitor.event, myAccount.id));
-            _toggleOnMonitor(screenMonitor);
+            toggleOnMonitor(screenMonitor);
             return true;
          },
          updated: function(event) {
@@ -117,85 +116,124 @@
             return true;
          },
          destroyed: function(screenMonitor) {
-            $('#mousey-'+screenMonitor.userId).remove();
-            _toggleOffMonitor(screenMonitor);
+            $('#mousey-'+screenMonitor.user.id).remove();
+            toggleOffMonitor(screenMonitor);
             return true;
          },
          recordingOn: function(screenMonitor) {
-            var $button = $('#'+screenMonitor.userId+' a.record');
+            var $button = $('#'+screenMonitor.user.id+' a.record');
             $button.addClass('btn-danger').find('i').removeClass('icon-play').addClass('icon-stop');
             return true;
          },
          recordingOff: function(screenMonitor) {
-            var $button = $('#'+screenMonitor.userId+' a.record');
+            var $button = $('#'+screenMonitor.user.id+' a.record');
             $button.removeClass('btn-danger').find('i').removeClass('icon-stop').addClass('icon-play');
             return true;
          }
       };
 
       replayView = {
-         created: function(replayId, replay) {
-            $('#replays').append(_replayTemplate(replayId, replay));
+         created: function(replay) {
+            var $replay = $(replayTemplate(replay.id, replay));
+            $replay.find('.del').click(_deleteClicked);
+            $replay.find('.play').click(_playClicked);
+            $('#replays').append($replay);
          },
-         destroyed: function(replayId, replay) {
-            console.log('replay destroyed', replayId, replay);
+         destroyed: function(replay) {
+            $('#replay'+replay.id).remove();
          },
-         started: function(replayId, replay) {
-            console.log('replay started', replayId, replay);
+         started: function(replay) {
+            var $button = $('#replay'+replay.id).find('.play');
+            // reset content, enable the user buttons
+            resetScreenComponents(true, $button);
+            // reset the replay button
+            //todo
+            console.log('replay started', replay.id, replay);
          },
-         finished: function(replayId, replay) {
-            console.log('replay finished', replayId, replay);
+         finished: function(replay) {
+            var $button = $('#replay'+replay.id).find('.play');
+            // reset screen content, disable user buttons
+            resetScreenComponents(false, $button);
+            // change the replay button to a stop icon
+            //todo
+
+            //todo call abort on replay sequence as needed
+
+            console.log('replay ended', replay.id, replay);
+         },
+         next: function(replay, event) {
+            console.log(event);
+            //todo
+            //todo
+            //todo
          }
-         //todo paused? aborted?
       };
 
-      var screenTracker = new ScreenTrackerController(FirebaseRoot, screenTrackerView, replayView, FRAMERATE);
+      screenTracker = new ScreenTrackerController(FirebaseRoot, screenTrackerView, replayView, FRAMERATE);
 
       myAccountLoader.then(function(user) {
          // record local screen events for others to track
          screenTracker.syncLocal(user.id);
       });
 
-      $('#presence').on('click', '.user a.monitor', toggleMonitor).on('click', '.user a.record', toggleRecording);
+      $('#presence').on('click', '.user a.monitor', _trackerClicked).on('click', '.user a.record', _recordClicked);
 
-      function toggleMonitor(e) {
+      function _trackerClicked(e) {
          var $parent = $(this).parent(), id = $parent.attr('id'), activate = !$parent.hasClass('active');
          screenTracker.toggle(userController.fetch(id), activate);
       }
 
-      function toggleRecording(e) {
+      function _recordClicked(e) {
          var $parent = $(this).parent(), id = $parent.attr('id'), activate = !$(this).hasClass('btn-danger');
          screenTracker.toggleRecording(userController.fetch(id), activate);
       }
 
+      function _playClicked(e) {
+         var $button = $(this), replay = findReplay($button, screenTracker);
+         (replay.running() && replay.stop()) || replay.start().then(_replaySequence);
+      }
+
+      function _deleteClicked(e) {
+         var $button = $(this), replay = findReplay($button, screenTracker);
+         replay.destroy();
+         $button.removeData('replay');
+      }
+
+      var _currentReplay = null;
+      function _replaySequence(replay, events) {
+         //todo
+         //todo
+         //todo
+         //todo
+      }
 
    }); // end jQuery(...) run on document ready
 
    /** UTILITY FUNCTIONS
     **************************************************************************************************/
 
-   function _getUserName() {
+   function getUserName() {
       var name = $.cookie('USER_NAME');
       if( name ) { return name; }
 
       name = prompt("Your name?", "Guest") || 'Guest';
-      _setUserName(name);
+      setUserName(name);
       return name;
    }
 
-   function _setUserName(name) {
+   function setUserName(name) {
       console.log('setting name to '+name);
       $.cookie('USER_NAME', name);
    }
 
-   function _toggleOnMonitor(screenMonitor) {
-      var $parent = $('#'+screenMonitor.userId);
+   function toggleOnMonitor(screenMonitor) {
+      var $parent = $('#'+screenMonitor.user.id);
       $parent.addClass('active');
       $parent.find('a.monitor').addClass('btn-primary').find('i').removeClass('icon-eye-open').addClass('icon-stop');
    }
 
-   function _toggleOffMonitor(screenMonitor) {
-      var $parent = $('#'+screenMonitor.userId);
+   function toggleOffMonitor(screenMonitor) {
+      var $parent = $('#'+screenMonitor.user.id);
       $parent.removeClass('active');
       $parent.find('a.monitor').removeClass('btn-primary').find('i').removeClass('icon-stop').addClass('icon-eye-open');
    }
@@ -216,15 +254,43 @@
       return currPos.top != lastPos.top || currPos.left != lastPos.left;
    }
 
-   function _replayTemplate(replayId, replay) {
+   function replayTemplate(replayId, replay) {
       var duration = moment.duration(replay.stopTime - replay.startTime);
       return REPLAY_TEMPLATE
          .replace(/\{replayId\}/, replayId)
          .replace(/\{userId\}/, replay.userId)
          .replace(/\{name\}/,   replay.name)
-         .replace(/\{duration\}/, duration.asHours()+':'+duration.seconds())
-         .replace(/\{created\}/, moment(replay.startTime).fromNow())
+         .replace(/\{duration\}/, _doubleOt(duration.asHours())+':'+_doubleOt(duration.seconds()))
+         .replace(/\{created\}/, moment(replay.startTime).fromNow(true))
       ;
+   }
+
+   function _doubleOt(num) {
+      return pad(Math.floor(~~num), 2);
+   }
+
+   function pad(n, len) {
+      var s = n.toString();
+      if (s.length < len) {
+         s = ('0000000000' + s).slice(-len);
+      }
+      return s;
+   }
+
+   function resetScreenComponents(buttonsActive, $thisButton) {
+      //todo
+      //todo
+      //todo
+   }
+
+   function findReplay($button, screenTracker) {
+      var id, data = $button.data('replay');
+      if( data ) {
+         return data;
+      }
+      else {
+         return screenTracker.getReplay($button.attr('id'));
+      }
    }
 
 })(jQuery);

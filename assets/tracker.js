@@ -11,7 +11,7 @@ var ScreenTrackerController = (function() { // localize scoping but keep the con
       var self = this;
 
       // stop monitoring any user that is removed
-      this.monitoredScreens = [];
+      this.monitoredScreens = {};
       this.view = trackerView;
       this.syncInterval = Math.ceil(1000/framerate);
 
@@ -59,7 +59,7 @@ var ScreenTrackerController = (function() { // localize scoping but keep the con
     * @return {ScreenTrackerController}
     */
    ScreenTrackerController.prototype.toggleRecording = function(user, activate) {
-      (activate && this.record(user)) || this.stopRecording(user);
+      (activate && this.record(user)) || this.stopRecording(user.id);
       return this;
    };
 
@@ -107,15 +107,9 @@ var ScreenTrackerController = (function() { // localize scoping but keep the con
       return this;
    };
 
-   ScreenTrackerController.prototype.replay = function(recordingId) {
-      var recView = this.replayView;
-      recView.replayStart(recordingId);
-      //todo
-      //todo
-      //todo
-      setTimeout(function() { recView.replayEnd(recordingId); }, 2000); //debug
-
-      return this;
+   ScreenTrackerController.prototype.getReplay = function(recordingId) {
+      var replayView = this.replayView, replayRecord = this.replayRef.child(recordingId);
+      return new Replay(replayRecord, replayView);
    };
 
    /**
@@ -231,15 +225,44 @@ var ScreenTrackerController = (function() { // localize scoping but keep the con
    /*****************************************************
     * Replay
     *
-    * @param {object} recording
+    * @param {object} record
+    * @param {object} view
     * @constructor
     ***************************************************/
-   function Replay(recording, view) {
-      //todo
-      //todo
-      //todo
-      return recording; //debug
+   function Replay(record, view) {
+      var rec = record.val(), self = this;
+      this.name      = rec.name;
+      this.startTime = rec.startTime;
+      this.endTime   = rec.endTime;
+      this.userId    = rec.userId;
+      this.view = view;
+      this.id = record.name();
+      this.isRunning = false;
+      this.destroy = function() {
+         var def = $.Deferred();
+         record.remove(function() { def.resolve(); });
+         return def.promise();
+      };
+      this.getEvents = function() {
+         var def = $.Deferred();
+         record.child('events').once('value', function(snapshot) {
+            def.resolve(self, snapshot.val());
+         });
+         return def.promise();
+      }
    }
+   Replay.prototype.running = function() { return this.isRunning; };
+   Replay.prototype.start = function() {
+      var self = this;
+      this.isRunning = true;
+      return this.getEvents().then(function() {
+         this.view.started(self);
+      });
+   };
+   Replay.prototype.stop = function() {
+      this.isRunning = false;
+      this.view.finished(this);
+   };
 
    return ScreenTrackerController; // assign the controller function to the public var
 
@@ -247,7 +270,7 @@ var ScreenTrackerController = (function() { // localize scoping but keep the con
    /** UTILITIES */
 
    function _idFor(userOrId) {
-      return typeof(userOrId) === 'string'? userOrId : userOrId.id;
+      return typeof(userOrId) === 'object'? userOrId.id : userOrId;
    }
 
 })();
