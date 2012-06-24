@@ -14,8 +14,10 @@ var KeypressTracker = (function($) {
    }
 
    KeypressTracker.prototype.syncLocal = function(user) {
-      $(document).on('keypress', function(e) {
-         var message, undef;
+      var self = this;
+      // keypress doesn't work for control keys in Chrome, so we need two functions
+      // keypress to handle ascii chars and keydown to handle control keys
+      $(document).on('keydown', function(e) {
          switch(e.keyCode){
             case $.ui.keyCode.ENTER:
                e.preventDefault();
@@ -26,25 +28,30 @@ var KeypressTracker = (function($) {
                self.message = '';
                break;
             case $.ui.keyCode.ESCAPE:
-               message = '';
+               e.preventDefault();
+               self.message = '';
+               self.view.cancel();
                break;
             case $.ui.keyCode.BACKSPACE:
-               message = self.message.substr(0, self.message.length-1);
-               if( !message.length ) { self.view.cancel(); }
+               e.preventDefault();
+               self.message = self.message.substr(0, self.message.length-1);
+               self.view.myMessage(self.message);
+               if( !self.message.length ) { self.view.cancel(); }
                break;
             default:
-               if(e.which !== 0) {
-                  message = self.message + String.fromCharCode(e.which);
-               }
-         }
-         if( message !== undef ) {
-            e.preventDefault();
-            self.message = message;
-            if( message ) { self.view.myMessage(message); }
-            else { self.view.cancel(); }
+               // nothing to do
          }
       });
-      var self = this;
+      $(document).on('keypress', function(e) {
+         var message;
+         if(e.which !== 0) {
+            e.preventDefault();
+            // it's an ascii character (something we can display)
+            // so update the message
+            message = self.message = self.message + String.fromCharCode(e.which);
+            self.view.myMessage(message);
+         }
+      });
    };
 
    return KeypressTracker;

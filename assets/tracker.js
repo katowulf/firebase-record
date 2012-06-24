@@ -233,7 +233,7 @@ var ScreenTrackerController = (function() { // localize scoping but keep the con
 
    function _replayEvent(replay, e) {
       var ms = new Date().valueOf();
-      return{created: ms, elapsed: _elapsed(ms, replay), type: e.type, top: e.top, left: e.left, target: e.target||null};
+      return{created: ms, elapsed: _elapsed(ms, replay), type: e.type||null, top: e.top||0, left: e.left||0, target: e.target||null};
    }
 
    function _elapsed(ms, replay) {
@@ -242,7 +242,7 @@ var ScreenTrackerController = (function() { // localize scoping but keep the con
    }
 
    ScreenTracker.prototype.record = function() {
-      this.replay = {userId: this.user.id, name: this.user.name, startTime: new Date().valueOf(), events: []};
+      this.replay = {userId: this.user.id||null, name: this.user.name||null, startTime: new Date().valueOf(), events: []};
       this.view.recordingOn(this);
    };
 
