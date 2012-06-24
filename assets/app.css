@@ -20,26 +20,40 @@
 }
 
 #contentbox {
-  position: relative;
-  height: 500px;
+   position: relative;
+   height: 500px;
+   padding: 2px;
+}
+
+#box1, #box2 {
+   border: 3px dashed #999;
+   color: #999;
+   position: absolute;
+   font-size: 40px;
+   text-align: center;
+   z-index: 20;
+}
+
+#box1:hover, #box2:hover {
+   border-style: solid;
+   cursor: move;
+   background-color: #ffc;
 }
 
 #box1 {
-   position: absolute;
    left: 75px;
    top: 250px;
    width: 50px;
    height: 100px;
-   background-color: blue;
+   line-height: 100px;
 }
 
 #box2 {
-   position: absolute;
    left: 200px;
    top: 100px;
    width: 75px;
    height: 75px;
-   background-color: gray;
+   line-height: 75px;
 }
 
 #contentbox textarea {
@@ -54,15 +68,23 @@
    color: green;
 }
 
-.active.user-white  a.monitor i, .anX.user-white  { color: white; }
-.active.user-yellow a.monitor i, .anX.user-yellow { color: yellow; }
-.active.user-orange a.monitor i, .anX.user-orange { color: orange; }
-.active.user-red    a.monitor i, .anX.user-red    { color: red; }
-.active.user-blue   a.monitor i, .anX.user-blue   { color: blue; }
-.active.user-green  a.monitor i, .anX.user-green  { color: green; }
-.active.user-gray   a.monitor i, .anX.user-gray   { color: gray; }
-.active.user-black  a.monitor i, .anX.user-black  { color: black; }
-.active.user-purple a.monitor i, .anX.user-purple { color: purple; }
+.dragPlaceholder {
+   position: absolute;
+   border: 3px dashed white;
+   z-index: 10;
+   -webkit-box-shadow: 1px 1px 2px 2px rgba(0, 0, 0, .2);
+   box-shadow: 1px 1px 2px 2px rgba(0, 0, 0, .2);
+}
+
+.active.user-white  a.monitor i, .anX.user-white,  .dragPlaceholder.user-white  { color: white; }
+.active.user-yellow a.monitor i, .anX.user-yellow, .dragPlaceholder.user-yellow { color: yellow; }
+.active.user-orange a.monitor i, .anX.user-orange, .dragPlaceholder.user-orange { color: orange; }
+.active.user-red    a.monitor i, .anX.user-red,    .dragPlaceholder.user-red    { color: red; }
+.active.user-blue   a.monitor i, .anX.user-blue,   .dragPlaceholder.user-blue   { color: blue; }
+.active.user-green  a.monitor i, .anX.user-green,  .dragPlaceholder.user-green  { color: green; }
+.active.user-gray   a.monitor i, .anX.user-gray,   .dragPlaceholder.user-gray   { color: gray; }
+.active.user-black  a.monitor i, .anX.user-black,  .dragPlaceholder.user-black  { color: black; }
+.active.user-purple a.monitor i, .anX.user-purple, .dragPlaceholder.user-purple { color: purple; }
 
 .user a.record { display: none; }
 .active.user a.record { display: inline-block; }
@@ -96,4 +118,41 @@
 
 #statusbox ul li {
    line-height: 30px;
+}
+
+#myMessage {
+   background-color: white;
+   -webkit-border-radius: 4px;
+   border-radius: 4px;
+   -webkit-box-shadow: inset 1px 1px 4px 1px rgba(0, 0, 0, .25);
+   box-shadow: inset 1px 1px 4px 1px rgba(0, 0, 0, .25);
+   font-size: 16px;
+   padding: 4px;
+   display: none;
+}
+
+.message {
+   margin: 1px;
+   padding: 4px;
+   -webkit-border-radius: 4px;
+   border-radius: 4px;
+   -webkit-box-shadow: 1px 1px 4px 1px rgba(0, 0, 0, .25);
+   box-shadow: 1px 1px 4px 1px rgba(0, 0, 0, .25);
+   background-color: #F5F5F5;
+}
+
+.message p {
+   margin-bottom: 4px;
+}
+
+.message h3 {
+   font-size: 16px;
+   font-weight: normal;
+   color: #999;
+   line-height: 22px;
+   font-style: italic;
+}
+
+#messages .new {
+   background-color: #ffc;
 }

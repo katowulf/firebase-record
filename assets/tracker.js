@@ -30,7 +30,9 @@ var ScreenTrackerController = (function() { // localize scoping but keep the con
       });
 
       this.replayRef.limit(10).on('child_added', function(snapshot) {
-         self.replayView.created(snapshot.name(), snapshot.val());
+         var replay = snapshot.val();
+         replay.id = snapshot.name();
+         self.replayView.created(replay);
       });
    }
 
@@ -108,20 +110,39 @@ var ScreenTrackerController = (function() { // localize scoping but keep the con
    };
 
    ScreenTrackerController.prototype.getReplay = function(recordingId) {
-      var replayView = this.replayView, replayRecord = this.replayRef.child(recordingId);
-      return new Replay(replayRecord, replayView);
+      var replayView = this.replayView, ref = this.replayRef.child(recordingId);
+      return Defer.now(function(def) {
+         ref.once('value', function(snapshot) {
+            def.resolve(new Replay(recordingId, snapshot.val(), replayView, ref));
+         });
+      });
    };
 
    /**
     * @param {string} userId
     * @return {ScreenTrackerController}
     */
-   ScreenTrackerController.prototype.syncLocal = function(userId) {
+   ScreenTrackerController.prototype.syncLocal = function(userId, dragDropController) {
       var ref = this.ref.child(userId);
-      var currPos = {top: 0, left: 0, type: '', userId: userId};
-      var lastPos = {top: 0, left: 0, type: '', userId: userId};
+      var currPos = {top: 0, left: 0, type: '', userId: userId, target: ''};
+      var lastPos = currPos, currBoxPos = currPos, lastBoxPos = currPos;
 
       ref.removeOnDisconnect();
+
+      dragDropController.monitor(function(element, e) {
+         var evt = _boxEvent(e, userId);
+         switch(e.type) {
+            case 'drag':
+               currBoxPos = evt;     // buffer drag events
+               break;
+            case 'dragstop':
+               evt.type = 'drop';
+               ref.set(evt); // report final position immediately
+               break;
+            default:
+               console.warn('I don\'t monitor '+ e.type+' events');
+         }
+      });
 
       // track mouse movement
       $(document).on('mousemove', function(e) {
@@ -134,9 +155,15 @@ var ScreenTrackerController = (function() { // localize scoping but keep the con
          ref.set(currPos);
       });
 
-      // buffer updates by only checking the mouse position occasionally
+      // buffer updates by only checking the events occasionally
       setInterval(function() {
+         if( _moved(currBoxPos, lastBoxPos) ) {
+            // box drag event
+            lastBoxPos = currBoxPos;
+            ref.set(currBoxPos);
+         }
          if( _moved(currPos, lastPos) ) {
+            // mouse move event
             lastPos = currPos;
             ref.set(currPos);
          }
@@ -156,7 +183,14 @@ var ScreenTrackerController = (function() { // localize scoping but keep the con
    };
 
    function _event(e, userId) {
-      return {top: e.clientY, left: e.clientX, type: e.type, userId: userId};
+      return {top: e.pageY, left: e.pageX, type: e.type, userId: userId, target: $(e.target).attr('id')||null};
+   }
+
+   function _boxEvent(e, userId) {
+      var res = _event(e, userId), pos = $(e.target).offset();
+      res.top = pos.top;
+      res.left = pos.left;
+      return res;
    }
 
    function _moved(currPos, lastPos) {
@@ -173,7 +207,7 @@ var ScreenTrackerController = (function() { // localize scoping but keep the con
       var self = this, userId = user.id;
       this.user   = user;
       this.view   = view;
-      this.event  = {top: 0, left: 0, type: '', userId: userId};
+      this.event  = {top: 0, left: 0, type: '', userId: userId, target: ''};
       this.ref    = pointersRefList.child(userId);
       this.replay = null;
 
@@ -181,7 +215,7 @@ var ScreenTrackerController = (function() { // localize scoping but keep the con
          var e = snapshot.val();
          if( e ) {
             self.event = e;
-            self.view.updated(e);
+            self.view.updated(e, self);
             self.replay && self.replay.events.push(_replayEvent(self.replay, e));
          }
       };
@@ -199,7 +233,7 @@ var ScreenTrackerController = (function() { // localize scoping but keep the con
 
    function _replayEvent(replay, e) {
       var ms = new Date().valueOf();
-      return{created: ms, elapsed: _elapsed(ms, replay), type: e.type, top: e.top, left: e.left};
+      return{created: ms, elapsed: _elapsed(ms, replay), type: e.type, top: e.top, left: e.left, target: e.target||null};
    }
 
    function _elapsed(ms, replay) {
@@ -225,43 +259,50 @@ var ScreenTrackerController = (function() { // localize scoping but keep the con
    /*****************************************************
     * Replay
     *
-    * @param {object} record
+    * @param {object} props
     * @param {object} view
     * @constructor
     ***************************************************/
-   function Replay(record, view) {
-      var rec = record.val(), self = this;
-      this.name      = rec.name;
-      this.startTime = rec.startTime;
-      this.endTime   = rec.endTime;
-      this.userId    = rec.userId;
+   function Replay(id, props, view, ref) {
+      var self = this;
+      console.log('building replay', props);
+      this.name      = props.name;
+      this.startTime = props.startTime;
+      this.endTime   = props.endTime;
+      this.userId    = props.userId;
       this.view = view;
-      this.id = record.name();
+      this.id = id;
       this.isRunning = false;
-      this.destroy = function() {
-         var def = $.Deferred();
-         record.remove(function() { def.resolve(); });
-         return def.promise();
-      };
-      this.getEvents = function() {
-         var def = $.Deferred();
-         record.child('events').once('value', function(snapshot) {
-            def.resolve(self, snapshot.val());
+
+      this.destroy = Defer.fx(function(def) {
+         self.view.destroyed(self);
+         ref.remove(function() { def.resolve(id); });
+      });
+
+      this.getEvents = Defer.fx(function(def) {
+         ref.child('events').once('value', function(snapshot) {
+            def.resolve(snapshot.val());
          });
-         return def.promise();
-      }
+      });
    }
    Replay.prototype.running = function() { return this.isRunning; };
    Replay.prototype.start = function() {
-      var self = this;
-      this.isRunning = true;
-      return this.getEvents().then(function() {
+      if( !this.isRunning ) {
+         var self = this;
+         this.isRunning = true;
          this.view.started(self);
-      });
+         return this.getEvents();
+      }
+      else {
+         return $.Deferred().reject('not running').promise();
+      }
    };
    Replay.prototype.stop = function() {
-      this.isRunning = false;
-      this.view.finished(this);
+      if( this.isRunning ) {
+         this.isRunning = false;
+         this.view.finished(this);
+      }
+      return this;
    };
 
    return ScreenTrackerController; // assign the controller function to the public var

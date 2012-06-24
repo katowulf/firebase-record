@@ -26,12 +26,39 @@ function IncrementalIdGenerator(firebaseRoot, idCounterKey) {
 }
 
 /*****************************************************
+ * DeferThis
+ *
+ * @static
+ ***************************************************/
+var Defer = {
+   /**
+    * @param {Function} fx
+    * @return {Function}
+    */
+   fx: function(fx) {
+      return function() { return Defer.now(fx); }
+   },
+
+   /**
+    * @param {Function} fx
+    * @return {jQuery.Deferred} promise
+    */
+   now: function(fx) {
+      var def = $.Deferred();
+      fx(def);
+      return def.promise();
+   }
+};
+
+
+
+/*****************************************************
  * ColorPicker
  *
  * @constructor
  ***************************************************/
 var ColorPicker = (function() {
-   var availColors = ['green', 'blue', 'purple', 'orange', 'red', 'gray', 'black', 'yellow', 'white'];
+   var availColors = ['green', 'orange', 'blue', 'red', 'purple', 'gray', 'black', 'yellow', 'white'];
    var currColor = 0;
    var max = availColors.length-1;
    return {

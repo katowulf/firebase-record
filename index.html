@@ -25,9 +25,9 @@
     <div class="row">
         <div class="span7">
             <div class="well" id="contentbox">
-                <div id="box1"></div>
-                <div id="box2"></div>
-                <textarea></textarea>
+                <div id="box1" class="drag">1</div>
+                <div id="box2" class="drag">2</div>
+                <!--<textarea></textarea>-->
             </div>
         </div>
         <div class="span5" id="statusbox">
@@ -36,19 +36,26 @@
             <h2>Replays</h2>
             <ul id="replays"></ul>
             <h2>Messages</h2>
-            <div id="discussion"></div>
+            <div id="myMessage"></div>
+            <div id="messages"></div>
         </div>
     </div>
     <div class="row"><div id="marker" class="span12"></div></div>
 </div>
+<p id="log"></p>
 <script type="text/javascript" src="lib/jquery/jquery.min.js"></script>
+<script type="text/javascript" src="lib/jquery/jquery-ui-1.8.21.custom.min.js"></script>
 <script type="text/javascript" src="lib/jquery/jquery.cookie.js"></script>
+<script type="text/javascript" src="lib/jquery/jquery.sequence.js"></script>
+<!--<script type="text/javascript" src="lib/jquery.drag/jquery.event.drag-2.2.js"></script>-->
 <script type="text/javascript" src="lib/bootstrap/js/bootstrap.min.js"></script>
 <script type="text/javascript" src="lib/firebase/idle.js"></script>
-<script type="text/javascript" src="lib/moment/moment.min.js"></script>
+<script type="text/javascript" src="lib/moment/moment.js"></script>
 <script type="text/javascript" src="assets/utils.js"></script>
 <script type="text/javascript" src="assets/user.js"></script>
 <script type="text/javascript" src="assets/tracker.js"></script>
+<script type="text/javascript" src="assets/dragdrop.js"></script>
+<script type="text/javascript" src="assets/keypress.js"></script>
 <script type="text/javascript" src="assets/app.js"></script>
 </body>
 </html>
